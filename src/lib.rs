@@ -1,6 +1,7 @@
 use std::{
     alloc::{self, Layout},
     ops::{Index, IndexMut},
+    slice,
 };
 
 pub struct RawVec<T> {
@@ -32,6 +33,20 @@ impl<T> RawVec<T> {
         }
         unsafe { self.ptr.add(self.len()).write(value) }
         self.len += 1;
+    }
+
+    pub fn iter(&self) -> Iter<'_, T> {
+        Iter {
+            slice: unsafe { slice::from_raw_parts(self.ptr, self.len) },
+            pos: 0,
+        }
+    }
+
+    pub fn iter_mut(&mut self) -> IterMut<'_, T> {
+        IterMut {
+            slice: unsafe { slice::from_raw_parts_mut(self.ptr, self.len) },
+            pos: 0,
+        }
     }
 
     pub fn get(&self, index: usize) -> Option<&T> {
@@ -78,7 +93,7 @@ impl<T> RawVec<T> {
     }
 }
 
-//impl Index and IndexMut for RawVec
+// -------impl Index and IndexMut for RawVec--------
 impl<T> Index<usize> for RawVec<T> {
     type Output = T;
 
@@ -103,7 +118,43 @@ impl<T> IndexMut<usize> for RawVec<T> {
     }
 }
 
-//impl Drop for RawVec
+//------Iterators------
+pub struct Iter<'a, T> {
+    slice: &'a [T],
+    pos: usize,
+}
+
+impl<'a, T> Iterator for Iter<'a, T> {
+    type Item = &'a T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.slice.len() {
+            return None;
+        }
+        self.pos += 1;
+        Some(&self.slice[self.pos - 1])
+    }
+}
+
+pub struct IterMut<'a, T> {
+    slice: &'a mut [T],
+    pos: usize,
+}
+
+impl<'a, T> Iterator for IterMut<'a, T> {
+    type Item = &'a mut T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.pos == self.slice.len() {
+            return None;
+        }
+        unsafe {
+            let ptr = self.slice.as_mut_ptr().add(self.pos);
+            self.pos += 1;
+            Some(&mut *ptr)
+        }
+    }
+}
+
+//-----impl Drop for RawVec-----
 impl<T> Drop for RawVec<T> {
     fn drop(&mut self) {
         if self.cap == 0 {
