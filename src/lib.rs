@@ -1,7 +1,7 @@
 use std::{
     alloc::{self, Layout},
     ops::{Index, IndexMut},
-    slice,
+    ptr, slice,
 };
 
 pub struct RawVec<T> {
@@ -13,7 +13,7 @@ pub struct RawVec<T> {
 impl<T> RawVec<T> {
     pub fn new() -> Self {
         RawVec {
-            ptr: std::ptr::null_mut(),
+            ptr: ptr::null_mut(),
             len: 0,
             cap: 0,
         }
