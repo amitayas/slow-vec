@@ -31,7 +31,7 @@ impl<T> RawVec<T> {
         if self.len == self.cap {
             self.grow();
         }
-        unsafe { self.ptr.add(self.len()).write(value) }
+        unsafe { self.ptr.add(self.len).write(value) }
         self.len += 1;
     }
 
@@ -44,8 +44,9 @@ impl<T> RawVec<T> {
 
     pub fn iter_mut(&mut self) -> IterMut<'_, T> {
         IterMut {
-            slice: unsafe { slice::from_raw_parts_mut(self.ptr, self.len) },
-            pos: 0,
+            ptr: self.ptr,
+            end: unsafe { self.ptr.add(self.len) },
+            _marker: std::marker::PhantomData,
         }
     }
 
@@ -74,7 +75,7 @@ impl<T> RawVec<T> {
         } else {
             self.cap + self.cap / 2
         };
-
+        let new_cap = new_cap.max(self.len + 1);
         unsafe {
             let layout = Layout::from_size_align_unchecked(new_cap * elem_size, align);
             let new_ptr = if self.cap == 0 {
@@ -136,20 +137,21 @@ impl<'a, T> Iterator for Iter<'a, T> {
 }
 
 pub struct IterMut<'a, T> {
-    slice: &'a mut [T],
-    pos: usize,
+    ptr: *mut T,
+    end: *mut T,
+    _marker: std::marker::PhantomData<&'a mut T>,
 }
 
 impl<'a, T> Iterator for IterMut<'a, T> {
     type Item = &'a mut T;
     fn next(&mut self) -> Option<Self::Item> {
-        if self.pos == self.slice.len() {
+        if self.ptr == self.end {
             return None;
         }
         unsafe {
-            let ptr = self.slice.as_mut_ptr().add(self.pos);
-            self.pos += 1;
-            Some(&mut *ptr)
+            let ptr_clone = self.ptr;
+            self.ptr = self.ptr.add(1);
+            ptr_clone.as_mut()
         }
     }
 }
