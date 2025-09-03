@@ -156,6 +156,60 @@ impl<'a, T> Iterator for IterMut<'a, T> {
     }
 }
 
+pub struct IntoIter<T> {
+    ptr: *mut T,
+    end: *mut T,
+    cap: usize,
+}
+
+impl<T> Iterator for IntoIter<T> {
+    type Item = T;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.ptr == self.end {
+            return None;
+        }
+        unsafe {
+            let item = self.ptr.read();
+            self.ptr = self.ptr.add(1);
+            Some(item)
+        }
+    }
+}
+
+impl<T> IntoIterator for RawVec<T> {
+    type Item = T;
+    type IntoIter = IntoIter<T>;
+    fn into_iter(self) -> Self::IntoIter {
+        let iter = IntoIter {
+            ptr: self.ptr,
+            end: unsafe { self.ptr.add(self.len) },
+            cap: self.cap,
+        };
+        std::mem::forget(self);
+        iter
+    }
+}
+
+//-----impl Drop for IntoIter-----
+impl<T> Drop for IntoIter<T> {
+    fn drop(&mut self) {
+        if self.cap == 0 {
+            return;
+        }
+        unsafe {
+            while self.ptr != self.end {
+                self.ptr.drop_in_place();
+                self.ptr = self.ptr.add(1);
+            }
+
+            self.ptr = self.end.sub(self.cap);
+            let layout =
+                Layout::from_size_align_unchecked(self.cap * size_of::<T>(), align_of::<T>());
+            alloc::dealloc(self.ptr as *mut u8, layout);
+        }
+    }
+}
+
 //-----impl Drop for RawVec-----
 impl<T> Drop for RawVec<T> {
     fn drop(&mut self) {
